@@ -18,7 +18,7 @@ function formatTime(seconds) {
 async function getsongs(folder) {
     currfolder = folder;
     try {
-        let response = await fetch(`http://127.0.0.1:3000/${folder}/`);
+        let response = await fetch(`http://127.0.0.1:5500/SPOTIFY%20CLONE/${folder}/`);
         let text = await response.text();
         let div = document.createElement("div");
         div.innerHTML = text;
@@ -27,7 +27,7 @@ async function getsongs(folder) {
         let artistData = {};
 
         try {
-            let infoResponse = await fetch(`http://127.0.0.1:3000/${folder}/info.json`);
+            let infoResponse = await fetch(`http://127.0.0.1:5500/SPOTIFY%20CLONE/${folder}/info.json`);
             artistData = await infoResponse.json();
         } catch (infoError) {
             console.error('Error fetching info.json:', infoError);
@@ -46,14 +46,14 @@ async function getsongs(folder) {
         songul.innerHTML = ''; 
         for (const song of songsList) {
             songul.innerHTML += `<li>
-                <img class="invert" src="img/music.svg" alt="">
+                <img class="invert" src="/SPOTIFY%20CLONE/img/music.svg" alt="">
                 <div class="info">
                     <div>${song.name}</div>
                     <div> ${artistData.title || ''}</div>
                 </div>
                 <div class="playnow">
                     <span>play now</span>
-                    <img class="invert" src="img/play.svg" alt="">
+                    <img class="invert" src="/SPOTIFY%20CLONE/img/play.svg" alt="">
                 </div>
             </li>`;
         }
@@ -70,76 +70,91 @@ async function getsongs(folder) {
 }
 
 const playmusic = (song, pause = false) => {
-    currentsong.src = `/${currfolder}/` + song.path;
+    currentsong.src = `/SPOTIFY%20CLONE/${currfolder}/${song.path}`;
     if (!pause) {
         currentsong.play();
-        play.src = "img/pause.svg";
+        play.src = "/SPOTIFY%20CLONE/img/pause.svg";
     }
     document.querySelector(".songinfo").innerHTML = song.name; 
     document.querySelector(".songtime").innerHTML = "00:00 / 00:00";
 };
 
-
-
-
-
-
 async function displayalbum(){
-    let response = await fetch(`http://127.0.0.1:3000/songs/`);
-        let text = await response.text();
-           let div = document.createElement("div");
-        div.innerHTML = text;
-        let anchors=div.getElementsByTagName("a")
-        let cardcontainer=document.querySelector(".cardcontainer")
-        let array=Array.from(anchors)
-            for (let index = 0; index < array.length; index++) {
-                const e = array[index];
-                
-                if(e.href.includes("/songs")){
-                    let folder=e.href.split("/").slice(-2)[0]  
-                    let songresponse = await fetch(`http://127.0.0.1:3000/songs/${folder}/info.json`);
-                    let songdata = await songresponse.json();   
-                    cardcontainer.innerHTML=cardcontainer.innerHTML+`<div data-folder=
-                    "${folder}" class="card">
-                    <div class="circle">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox=" 0 24 24" fill="black"><path d="M3 22V2l18 10L3 22z"/></svg>
-                    </div>
-                    <img src="/songs/${folder}/cover.jpeg" alt="">
-                    <h3>${songdata.title}</h3>
-                    <p>${songdata.description}</p>
-                    </div>`
-                }
-            } 
-        Array.from(document.getElementsByClassName("card")).forEach((e) => {
-            e.addEventListener("click",async (item) => {
-              songs = await getsongs(`songs/${item.currentTarget.dataset.folder}`);
-              playmusic(songs[0])
-              
-            }
-            )
-            
-          }
-          )
+    try {
+        let response = await fetch(`http://127.0.0.1:5500/SPOTIFY%20CLONE/songs/`);
+        if (!response.ok) throw new Error('Failed to fetch albums');
         
-   }
+        let text = await response.text();
+        let div = document.createElement("div");
+        div.innerHTML = text;
+        let anchors = div.getElementsByTagName("a");
+        let cardcontainer = document.querySelector(".cardcontainer");
+        
+        // Clear existing content
+        cardcontainer.innerHTML = '';
+        
+        let array = Array.from(anchors);
+        for (let index = 0; index < array.length; index++) {
+            const e = array[index];
+            
+            if (e.href.includes("/songs/")) {
+                try {
+                    let folder = e.href.split("/songs/")[1].split("/")[0];
+                    let songresponse = await fetch(`http://127.0.0.1:5500/SPOTIFY%20CLONE/songs/${folder}/info.json`);
+                    if (!songresponse.ok) continue;
+                    
+                    let songdata = await songresponse.json();
+                    cardcontainer.innerHTML += `
+                        <div data-folder="${folder}" class="card">
+                            <div class="circle">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="black">
+                                    <path d="M3 22V2l18 10L3 22z"/>
+                                </svg>
+                            </div>
+                            <img src="/SPOTIFY%20CLONE/songs/${folder}/cover.jpeg" alt="${songdata.title}" onerror="this.src='/SPOTIFY%20CLONE/img/default-album.png'">
+                            <h3>${songdata.title || 'Unknown Album'}</h3>
+                            <p>${songdata.description || 'No description available'}</p>
+                        </div>`;
+                } catch (error) {
+                    console.error(`Error loading album ${folder}:`, error);
+                }
+            }
+        }
 
+        // Add click event listeners to cards
+        Array.from(document.getElementsByClassName("card")).forEach((e) => {
+            e.addEventListener("click", async (item) => {
+                try {
+                    songs = await getsongs(`songs/${item.currentTarget.dataset.folder}`);
+                    if (songs && songs.length > 0) {
+                        playmusic(songs[0]);
+                    }
+                } catch (error) {
+                    console.error("Error playing album:", error);
+                }
+            });
+        });
+    } catch (error) {
+        console.error("Error in displayalbum:", error);
+        document.querySelector(".cardcontainer").innerHTML = '<p>Error loading albums. Please try again later.</p>';
+    }
+}
 
 async function main() {
     songs = await getsongs("songs/liked");
-    if (songs.length > 0) {
+    if (songs && songs.length > 0) {
         playmusic(songs[0], true);
-        
     }
 
-displayalbum()
+    await displayalbum();
 
     play.addEventListener("click", () => {
         if (currentsong.paused) {
             currentsong.play();
-            play.src = "img/pause.svg";
+            play.src = "/SPOTIFY%20CLONE/img/pause.svg";
         } else {
             currentsong.pause();
-            play.src = "img/play.svg";
+            play.src = "/SPOTIFY%20CLONE/img/play.svg";
         }
     });
 
@@ -180,16 +195,16 @@ displayalbum()
 let lastvolume = 1;
 let wasPlaying = false;
 document.querySelector(".volume>img").addEventListener("click", (e) => {
-    if (e.target.src.includes("img/volume.svg")) {
+    if (e.target.src.includes("/img/volume.svg")) {
          lastvolume = currentsong.volume;
-        e.target.src = e.target.src.replace("img/volume.svg", "img/mute.svg");
+        e.target.src = e.target.src.replace("/img/volume.svg", "/img/mute.svg");
         currentsong.volume = 0;
         document.querySelector(".range").getElementsByTagName("input")[0].value=0
         
        } else {
-        e.target.src = e.target.src.replace("img/mute.svg", "img/volume.svg");
+        e.target.src = e.target.src.replace("/img/mute.svg", "/img/volume.svg");
         currentsong.volume = lastvolume; 
-        document.querySelector(".range").getElementsByTagName("input")[0].value=lastvolume*1
+        document.querySelector(".range").getElementsByTagName("input")[0].value=lastvolume*100
         
     }
 });
